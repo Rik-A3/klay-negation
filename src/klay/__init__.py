@@ -25,7 +25,7 @@ def to_jax_function(self: Circuit, semiring: str = "log"):
     Convert the circuit into a Jax function.
 
     :param semiring:
-        The semiring in which the circuit should be evaluated. Supported options are ("log", "real").
+        The semiring in which the circuit should be evaluated. Supported options are ("log", "real", "mpe", "godel").
     """
     from .backends import jax
     indices = self._get_indices()
