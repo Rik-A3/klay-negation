@@ -1,6 +1,6 @@
-from klay.backends.jax.semiring.godel import max_layer, min_layer
-from klay.backends.jax.semiring.log import log_sum_layer, encode_input_log
-from klay.backends.jax.semiring.real import sum_layer, prod_layer, encode_input_real
+from klay.jax.semiring.godel import max_layer, min_layer
+from klay.jax.semiring.log import log_sum_layer, encode_input_log
+from klay.jax.semiring.real import sum_layer, prod_layer, encode_input_real
 
 
 def get_semiring(name: str):

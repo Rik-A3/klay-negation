@@ -2,7 +2,7 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 
-from klay.backends.jax.semiring import get_semiring, encode_input
+from klay.jax.semiring import get_semiring, encode_input
 
 
 def create_knowledge_layer(pointers, ix_outs, semiring):

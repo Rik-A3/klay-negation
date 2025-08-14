@@ -12,7 +12,7 @@ except ImportError:
     pass
 
 
-from klay.backends.torch import log1mexp
+from klay.torch import log1mexp
 
 try:
     from pysdd.iterator import SddIterator

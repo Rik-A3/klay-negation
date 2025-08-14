@@ -15,9 +15,9 @@ def to_torch_module(self: Circuit, semiring: str = "log", probabilistic: bool = 
         This means the inputs to a sum node are multiplied by a probability, and
         we can interpret sum nodes as latent Categorical variables.
     """
-    from .backends import torch
+    from .torch import KnowledgeModule
     indices = self._get_indices()
-    return torch.KnowledgeModule(*indices, semiring=semiring, probabilistic=probabilistic)
+    return KnowledgeModule(*indices, semiring=semiring, probabilistic=probabilistic)
 
 
 def to_jax_function(self: Circuit, semiring: str = "log"):
@@ -27,9 +27,9 @@ def to_jax_function(self: Circuit, semiring: str = "log"):
     :param semiring:
         The semiring in which the circuit should be evaluated. Supported options are ("log", "real", "mpe", "godel").
     """
-    from .backends import jax
+    from .jax import create_knowledge_layer
     indices = self._get_indices()
-    return jax.create_knowledge_layer(*indices, semiring=semiring)
+    return create_knowledge_layer(*indices, semiring=semiring)
 
 
 def add_sdd(self: Circuit, sdd: "SddNode", true_lits: Sequence[int] = (), false_lits: Sequence[int] = ()):
