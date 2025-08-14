@@ -12,7 +12,7 @@ CIRCUITS = ["sudoku_4", "4-grid", "seq_fun", "warcraft_12"]
 def print_results(results):
     for k, v in results.items():
         v = np.array(v) * 1000  # convert to ms
-        print(f"{k}: {np.mean(v):.2f} \pm {np.std(v):.2f}")
+        print(f"{k}: {np.mean(v):.2f} \\pm {np.std(v):.2f}")
 
 
 def main(batch_size):
