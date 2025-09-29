@@ -9,7 +9,7 @@
 project = 'KLay'
 copyright = '2025, DTAI Research Group'
 author = 'Jaron Maene, Vincent Derkinderen, Pedro Zuidberg Dos Martires'
-release = '0.1'
+release = '0.0.2'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -20,7 +20,7 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
     "sphinx.ext.intersphinx",
-    "sphinx_tabs.tabs"
+    "sphinx_inline_tabs"
 ]
 
 templates_path = ['_templates']
@@ -31,5 +31,5 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'alabaster'
+html_theme = 'furo'
 html_static_path = ['_static']

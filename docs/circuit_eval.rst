@@ -8,9 +8,7 @@ Backends
 
 Once we have created a circuit, we can start using it. KLay relies on a backend to perform the inference. Currently, the PyTorch and Jax backends are implemented.
 
-.. tabs::
-
-    .. group-tab:: PyTorch
+.. tab:: PyTorch
 
         We can turn the circuit into a PyTorch module as follows.
 
@@ -24,9 +22,9 @@ Once we have created a circuit, we can start using it. KLay relies on a backend 
 
             module = module.to("cuda:0")
 
-    .. group-tab:: Jax
+.. tab:: Jax
 
-        We can turn the circuit into a jax function as follows.
+        We can turn the circuit into a Jax function as follows.
 
         .. code-block:: Python
 
@@ -39,38 +37,44 @@ product and sum nodes just compute the normal product and sum operations.
 
 KLay doesn't introduce a batch dimension by default. So use vmap to perform batched inference.
 
-.. tabs::
+.. tab:: PyTorch
 
-    .. code-tab:: Python PyTorch
+    .. code-block:: Python
 
         module = torch.vmap(module)
 
-    .. code-tab:: Python Jax
+.. tab:: Jax
+
+    .. code-block:: Python
 
         func = jax.vmap(func)
 
 To achieve best runtime performance, it is advisable to use JIT compilation.
 
-.. tabs::
+.. tab:: PyTorch
 
-    .. code-tab:: Python PyTorch
+    .. code-block:: Python
 
         module = torch.compile(module, mode="reduce-overhead")
 
-    .. code-tab:: Python Jax
+.. tab:: Jax
+
+    .. code-block:: Python
 
         func = jax.jit(func)
 
 
 Klay also supports `probabilistic circuits <https://starai.cs.ucla.edu/papers/ProbCirc20.pdf>`_, which have weights associated with the edges of sum nodes.
 
-.. tabs::
+.. tab:: PyTorch
 
-    .. code-tab:: Python PyTorch
+    .. code-block:: Python
 
         module2 = circuit.to_torch_module(semiring="real", probabilistic=True)
 
-    .. code-tab:: Python Jax
+.. tab:: Jax
+
+    .. code-block:: Python
 
         # Warning: not yet implemented!
         func2 = circuit.to_jax_module(semiring="real", probabilistic=True)
@@ -83,28 +87,32 @@ The input to the circuit should be a tensor with as size the number of input lit
 Note that when using the :code:`log` semiring, the inputs are log-probabilities, while in the :code:`real` or :code:`mpe` semiring the inputs should be probabilities.
 In case you are using a probabilistic circuit, you should likely have some input distributions producing these (log-)probabilities prior to the circuit.
 
-.. tabs::
+.. tab:: PyTorch
 
-    .. code-tab:: Python PyTorch
+    .. code-block:: Python
 
         inputs = torch.tensor([...])
         outputs = module(inputs)
 
-    .. code-tab:: Python Jax
+.. tab:: Jax
+
+    .. code-block:: Python
 
         inputs = jnp.array([...])
         outputs = func(inputs)
 
 Gradients are computed in the usual fashion.
 
-.. tabs::
+.. tab:: PyTorch
 
-    .. code-tab:: Python PyTorch
+    .. code-block:: Python
 
         outputs = func(inputs)
         outputs.backward()
 
-    .. code-tab:: Python Jax
+.. tab:: Jax
+
+    .. code-block:: Python
 
         grad_func = jax.jit(jax.grad(func))
         grad_func(inputs)
@@ -115,15 +123,17 @@ For example for the :code:`real` semiring: if :code:`x` is the weight of literal
 then :code:`1 - x` is the weight of the negative literal :code:`-l`.
 To use other weights, you must provide a separate tensor containing a weight for each negative literal.
 
-.. tabs::
+.. tab:: PyTorch
 
-    .. code-tab:: Python PyTorch
+    .. code-block:: Python
 
         inputs = torch.tensor([...])
         neg_inputs = torch.tensor([...])  # assumed 1-inputs otherwise
         outputs = module(inputs, neg_inputs)
 
-    .. code-tab:: Python Jax
+.. tab:: Jax
+
+    .. code-block:: Python
 
         inputs = jnp.array([...])
         neg_inputs = jnp.array([...])  # assumed 1-inputs otherwise
