@@ -22,6 +22,9 @@ classifiers = [
 torch = [
     "torch",
 ]
+jax = [
+    "jax",
+]
 
 
 [project.urls]
