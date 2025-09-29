@@ -9,7 +9,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-       os: [ubuntu-latest, windows-latest, macos-13, macos-14]
+       os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
       - uses: actions/checkout@v4
@@ -17,7 +17,7 @@ jobs:
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.21.3
         env:
-          CIBW_TEST_REQUIRES: pytest torch==2.5.1, pysdd==1.0.0
+          CIBW_TEST_REQUIRES: pytest torch==2.8.0, pysdd==1.0.5
           CIBW_TEST_COMMAND: "pytest {project}/tests"
           CIBW_SKIP: cp36-* cp37-* cp38-* cp313-* pp* *i686 *ppc64le *s390x *win32* *musllinux*
           CIBW_TEST_SKIP: cp39-macosx_x86_64 cp310-macosx_x86_64 cp311-macosx_x86_64 cp312-macosx_x86_64
@@ -36,7 +36,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: '3.10'
       - name: Build
         run: |
           python -m pip install build
@@ -48,7 +48,7 @@ jobs:
           path: dist/*.tar.gz
 
   upload_wheels:
-    name: Upload wheels to private PyPI
+    name: Upload wheels to PyPI
     runs-on: ubuntu-latest
     needs: [ build_wheels,build_sdist ]
     environment:
