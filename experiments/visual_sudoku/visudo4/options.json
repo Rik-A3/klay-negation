@@ -1,0 +1,16 @@
+{
+    "dimension": 4,
+    "datasets": [
+        "mnist"
+    ],
+    "strategy": "simple",
+    "numTrain": 100,
+    "numTest": 100,
+    "numValid": 100,
+    "corruptChance": 0.5,
+    "overlap": 0.0,
+    "splitId": "01",
+    "seed": 2366904107,
+    "timestamp": "2022-09-18 14:25:12.908139",
+    "generator": "generate-split.py"
+}

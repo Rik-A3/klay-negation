@@ -1,43 +1,21 @@
 import argparse
-import io
-import zipfile
 from pathlib import Path
 from time import perf_counter
-
-import requests
 
 import klay
 import numpy as np
 import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
-from klay.utils import torch_wmc_d4
 from torch.utils.data import Dataset
-
-
-def download_visudo_dataset(grid_size: int):
-    data_path = Path(__file__).parent / Path("tmp")
-    if data_path.exists():
-        return
-
-    print("-> Downloading Visual Sudoku Dataset...")
-    r = requests.get(f"https://linqs-data.soe.ucsc.edu/public/datasets/ViSudo-PC/v01/"
-                     f"ViSudo-PC_dimension::{grid_size}_datasets::mnist_strategy::simple.zip")
-    print("-> Extracting...")
-    z = zipfile.ZipFile(io.BytesIO(r.content))
-    z.extractall(Path(__file__).parent)
 
 
 class SudokuDataset(Dataset):
     def __init__(self, partition: str, grid_size: int = 4, transform=None):
         super().__init__()
-        data_path = Path(__file__).parent / (f"tmp/ViSudo-PC/ViSudo-PC_dimension::4_datasets::"
-                                             f"mnist_strategy::simple/dimension::{grid_size}/datasets:"
-                                             f":mnist/strategy::simple/strategy::simple/numTrain::00100/"
-                                             f"numTest::00100/numValid::00100/corruptChance::0.50/"
-                                             f"overlap::0.00/split::11")
-        features_file = Path(data_path) / f'{partition}_puzzle_pixels.txt'
-        labels_file = Path(data_path) / f'{partition}_puzzle_labels.txt'
+        data_path = Path(__file__).parent / f"visudo{grid_size}"
+        features_file = data_path / f'{partition}_puzzle_pixels.txt'
+        labels_file = data_path / f'{partition}_puzzle_labels.txt'
         labels = np.loadtxt(labels_file, delimiter="\t", dtype=bool)
         features = np.loadtxt(features_file, delimiter="\t", dtype=np.float32)
         self.images = torch.as_tensor(features)
@@ -54,7 +32,6 @@ class SudokuDataset(Dataset):
 
 
 def get_dataloader(grid_size: int, partition: str, batch_size: int):
-    download_visudo_dataset(grid_size)
     normalize = transforms.Normalize((0.1307,), (0.3081,))
     train_dataset = SudokuDataset(partition, grid_size, transform=normalize)
     return torch.utils.data.DataLoader(
@@ -103,7 +80,6 @@ class VisualSudokuModule(nn.Module):
 
     def forward(self, images):
         shape = images.shape
-        assert not torch.isnan(images).any()
         images = images.reshape(-1, 1, 28, 28)
         image_probs = self.net(images)
         assert not torch.isnan(image_probs).any()
@@ -111,75 +87,70 @@ class VisualSudokuModule(nn.Module):
         return self.circuit_batched(image_probs, torch.zeros_like(image_probs))
 
 
-class VisualSudokuNaive(VisualSudokuModule):
-    def __init__(self, grid_size: int):
-        super().__init__(grid_size)
-        self.net = LeNet(grid_size)
-        self.circuit = None
-        nnf_file = f"experiments/visual_sudoku/sudoku_{grid_size}.nnf"
-        self.circuit_batched = lambda x, y: torch_wmc_d4(nnf_file, x, y)
-        self.grid_size = grid_size
-
-
 def get_circuit(grid_size: int):
     circuit = klay.Circuit()
-    const_lits = [] # [-x for x in range(1, grid_size**3+1)]
-    circuit.add_d4_from_file(f"experiments/visual_sudoku/sudoku_{grid_size}.nnf", true_lits = const_lits)
+    const_lits = [-x for x in range(1, grid_size ** 3 + 1)]
+    circuit.add_d4_from_file(f"experiments/visual_sudoku/sudoku_{grid_size}.nnf", true_lits=const_lits)
     print("Nb nodes", circuit.nb_nodes())
     return circuit.to_torch_module()
 
 
 def nll_loss(preds, targets):
-    neg_preds = klay.backends.torch_backend.log1mexp(preds)
+    neg_preds = klay.torch.log1mexp(preds, eps=1e-7)
     nll = -torch.where(targets, preds, neg_preds)
     return nll.mean()
 
 
-def main(grid_size: int, batch_size: int, nb_epochs: int, learning_rate: float, naive=False, device="cuda"):
-    train_dataloader = get_dataloader(grid_size, "train", batch_size)
-    if naive:
-        model = VisualSudokuNaive(grid_size).to(device)
-    else:
-        model = VisualSudokuModule(grid_size).to(device)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=0.00001)
-    timings = []
+def train(model, optimizer, dataloader, device="cuda"):
+    losses = []
+    for xs, ys in dataloader:
+        xs, ys = xs.to(device), ys.to(device)
+        preds = model(xs)
+        loss = nll_loss(preds[0], ys)
+        losses.append(loss.item())
+        assert not torch.isnan(loss).any()
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 2)
+        optimizer.step()
+        optimizer.zero_grad()
+    return losses
 
-    for epoch in range(nb_epochs):
-        losses = []
-        t1 = perf_counter()
-        for xs, ys in train_dataloader:
-            xs, ys = xs.to(device), ys.to(device)
-            preds = model(xs)
-            loss = nll_loss(preds[0], ys)
-            losses.append(loss.item())
-            assert not torch.isnan(loss).any()
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 2)
-            optimizer.step()
-            optimizer.zero_grad()
-        timings.append(perf_counter() - t1)
-        print(f"Epoch {epoch}, Loss {np.mean(losses):.5f}")
 
-    print(f"Mean Epoch Time (s) {np.mean(timings):.3f} ± {np.std(timings):.3f}")
-
+def evaluate(model, dataloader, device="cuda"):
     model = model.eval()
-    val_dataloader = get_dataloader(grid_size, "valid", 1)
     accs = []
-    for xs, ys in val_dataloader:
+    for xs, ys in dataloader:
         xs, ys = xs.to(device), ys.to(device)
         preds = model(xs).exp()
         acc = (preds[0] > 0.5) == ys
         accs += acc.tolist()
-    print(f"Validation Accuracy {np.mean(accs):.5f}")
+    return accs
+
+
+def main(grid_size: int, batch_size: int, nb_epochs: int, learning_rate: float, device="cuda"):
+    train_dataloader = get_dataloader(grid_size, "train", batch_size)
+    model = VisualSudokuModule(grid_size).to(device)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=1e-7)
+    timings = []
+
+    for epoch in range(nb_epochs):
+        t1 = perf_counter()
+        losses = train(model, optimizer, train_dataloader, device)
+        timings.append(perf_counter() - t1)
+        print(f"Epoch {epoch}, Loss {np.mean(losses):.5f}")
+    print(f"Mean Epoch Time (s) {np.mean(timings):.3f} ± {np.std(timings):.3f}")
+
+    val_dataloader = get_dataloader(grid_size, "valid", 1)
+    accs = evaluate(model, val_dataloader, device)
+    print(f"Validation Accuracy {100*np.mean(accs):.2f}%")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('-b', '--batch_size', type=int, default=4)
+    parser.add_argument('-b', '--batch_size', type=int, default=1)
     parser.add_argument('-e', '--nb_epochs', type=int, default=10)
     parser.add_argument('-d', '--device', default='cpu')
-    parser.add_argument('-lr', '--learning_rate', type=float, default=0.0003)
-    parser.add_argument("-n", '--naive', action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument('-lr', '--learning_rate', type=float, default=0.001)
     args = parser.parse_args()
 
     main(
@@ -187,6 +158,5 @@ if __name__ == "__main__":
         batch_size=args.batch_size,
         nb_epochs=args.nb_epochs,
         learning_rate=args.learning_rate,
-        naive=args.naive,
         device=args.device
     )
