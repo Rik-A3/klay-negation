@@ -1,5 +1,5 @@
 # noinspection PyUnresolvedReferences
-from .nanobind_ext import Circuit, NodePtr
+from .klay_ext import Circuit, NodePtr
 NodePtr.__module__ = "klay"
 
 from collections.abc import Sequence

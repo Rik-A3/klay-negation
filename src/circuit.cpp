@@ -468,7 +468,7 @@ std::pair<Arrays, Arrays> Circuit::get_indices() {
 }
 
 
-NB_MODULE(nanobind_ext, m) {
+NB_MODULE(klay_ext, m) {
 m.doc() = "Layerize arithmetic circuits";
 
 nb::class_<NodePtr>(m, "NodePtr")

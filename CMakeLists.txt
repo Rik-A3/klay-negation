@@ -1,8 +1,8 @@
-cmake_minimum_required(VERSION 3.15...3.26)
+cmake_minimum_required(VERSION 3.15...3.27)
 
 # set(CMAKE_BUILD_TYPE Debug)
 
-project(nanobind_example LANGUAGES CXX)
+project(klaycircuits LANGUAGES CXX)
 
 if (NOT SKBUILD)
     message(WARNING "\
@@ -38,7 +38,7 @@ find_package(nanobind CONFIG REQUIRED)
 # We are now ready to compile the actual extension module
 nanobind_add_module(
         # Name of the extension
-        nanobind_ext
+        klay_ext
 
         # Target the stable ABI for Python 3.12+, which reduces
         # the number of binary wheels that must be built. This
@@ -61,4 +61,4 @@ nanobind_add_module(
 )
 
 # Install directive for scikit-build-core
-install(TARGETS nanobind_ext LIBRARY DESTINATION klay)
+install(TARGETS klay_ext LIBRARY DESTINATION klay)

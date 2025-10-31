@@ -3,7 +3,7 @@ from time import perf_counter
 import random
 from array import array
 # noinspection PyUnresolvedReferences
-from .nanobind_ext import to_dot_file
+from .klay_ext import to_dot_file
 
 import torch
 try:
