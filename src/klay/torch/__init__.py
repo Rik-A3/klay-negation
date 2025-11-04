@@ -5,6 +5,7 @@ from torch import nn
 
 CUTOFF = -math.log(2)
 
+
 def log1mexp(x, eps):
     """
     Numerically accurate evaluation of log(1 - exp(x)) for x < 0.
@@ -14,9 +15,10 @@ def log1mexp(x, eps):
     mask = CUTOFF < x  # x < 0
     return torch.where(
         mask,
-        (-x.expm1()+eps).log(),
-        (-x.exp()+eps).log1p(),
+        (-x.expm1() + eps).log(),
+        (-x.exp() + eps).log1p(),
     )
+
 
 def negate_real(x, eps):
     return 1 - x
@@ -28,20 +30,20 @@ def unroll_ixs(ixs):
     return ixs.repeat_interleave(repeats=deltas)
 
 
-class KnowledgeModule(nn.Module):
+class CircuitModule(nn.Module):
     def __init__(self, ixs_in, ixs_out, semiring='real', probabilistic=False):
-        super(KnowledgeModule, self).__init__()
+        super(CircuitModule, self).__init__()
         layers = []
         self.probabilistic = probabilistic
-        sum_layer, prod_layer, self.zero, self.one, self.negate = get_semiring(semiring, probabilistic)
+        self.sum_layer, self.prod_layer, self.zero, self.one, self.negate = get_semiring(semiring, probabilistic)
         for i, (ix_in, ix_out) in enumerate(zip(ixs_in, ixs_out)):
             ix_in = torch.as_tensor(ix_in, dtype=torch.long)
             ix_out = torch.as_tensor(ix_out, dtype=torch.long)
             ix_out = unroll_ixs(ix_out)
             if i % 2 == 0:
-                layers.append(prod_layer(ix_in, ix_out))
+                layers.append(self.prod_layer(ix_in, ix_out))
             else:
-                layers.append(sum_layer(ix_in, ix_out))
+                layers.append(self.sum_layer(ix_in, ix_out))
         self.layers = nn.Sequential(*layers)
 
     def forward(self, x_pos, x_neg=None, eps=0):
@@ -58,7 +60,7 @@ class KnowledgeModule(nn.Module):
     def sparsity(self, nb_vars: int) -> float:
         sparse_params = sum(len(l.ix_out) for l in self.layers)
         layer_widths = [nb_vars] + [l.out_shape[0] for l in self.layers]
-        dense_params  = sum(layer_widths[i] * layer_widths[i+1] for i in range(len(layer_widths) - 1))
+        dense_params = sum(layer_widths[i] * layer_widths[i + 1] for i in range(len(layer_widths) - 1))
         return sparse_params / dense_params
 
     def sample_pc(self):
@@ -109,7 +111,6 @@ class KnowledgeLayer(nn.Module):
         output = torch.scatter_add(output, 0, index=self.ix_out, src=x)
         output = torch.log(output) + max_output
         return output
-
 
 
 class ProbabilisticKnowledgeLayer(KnowledgeLayer):
@@ -191,6 +192,7 @@ class ProbabilisticLogSumLayer(ProbabilisticKnowledgeLayer):
         y = self.forward(x)
         self.renorm_weights(x[self.ix_in])
         return y
+
 
 def get_semiring(name: str, probabilistic: bool):
     """

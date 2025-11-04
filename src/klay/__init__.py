@@ -16,9 +16,9 @@ def to_torch_module(self: Circuit, semiring: str = "log", probabilistic: bool = 
         This means the inputs to a sum node are multiplied by a probability, and
         we can interpret sum nodes as latent Categorical variables.
     """
-    from .torch import KnowledgeModule
+    from .torch import CircuitModule
     indices = self._get_indices()
-    return KnowledgeModule(*indices, semiring=semiring, probabilistic=probabilistic)
+    return CircuitModule(*indices, semiring=semiring, probabilistic=probabilistic)
 
 
 def to_jax_function(self: Circuit, semiring: str = "log"):
