@@ -1,0 +1,140 @@
+import torch
+from torch import nn
+
+from .utils import negate_real, log1mexp
+
+
+class CircuitLayer(nn.Module):
+    def __init__(self, ix_in, ix_out):
+        super().__init__()
+        self.register_buffer('ix_in', ix_in)
+        self.register_buffer('ix_out', ix_out)
+        self.out_shape = (self.ix_out[-1].item() + 1,)
+        self.in_shape = (self.ix_in.max().item() + 1,)
+
+    def _scatter_forward(self, x: torch.Tensor, reduce: str, **kwargs):
+        if reduce == "logsumexp":
+            return self._scatter_logsumexp_forward(x, **kwargs)
+        output = torch.empty(self.out_shape, dtype=x.dtype, device=x.device)
+        output = torch.scatter_reduce(output, 0, index=self.ix_out, src=x, reduce=reduce, include_self=False)
+        return output
+
+    def _scatter_backward(self, x: torch.Tensor, reduce: str):
+        output = torch.zeros(self.in_shape, dtype=x.dtype, device=x.device)
+        output = torch.scatter_reduce(output, 0, index=self.ix_in, src=x, reduce=reduce, include_self=False)
+        return output
+
+    def _safe_exp(self, x: torch.Tensor):
+        with torch.no_grad():
+            max_output = self._scatter_forward(x, "amax")
+        x = x - max_output[self.ix_out]
+        x.nan_to_num_(nan=0., posinf=float('inf'), neginf=float('-inf'))
+        return torch.exp(x), max_output
+
+    def _scatter_logsumexp_forward(self, x: torch.Tensor, eps: float):
+        x, max_output = self._safe_exp(x)
+        output = torch.full(self.out_shape, eps, dtype=x.dtype, device=x.device)
+        output = torch.scatter_add(output, 0, index=self.ix_out, src=x)
+        output = torch.log(output) + max_output
+        return output
+
+    def sample(self, y):
+        return self._scatter_backward(y[self.ix_out], "amax")
+
+
+class SumLayer(CircuitLayer):
+    def forward(self, x):
+        return self._scatter_forward(x[self.ix_in], "sum")
+
+
+class ProdLayer(CircuitLayer):
+    def forward(self, x):
+        return self._scatter_forward(x[self.ix_in], "prod")
+
+
+class MinLayer(CircuitLayer):
+    def forward(self, x):
+        return self._scatter_forward(x[self.ix_in], "amin")
+
+
+class MaxLayer(CircuitLayer):
+    def forward(self, x):
+        return self._scatter_forward(x[self.ix_in], "amax")
+
+
+class LogSumLayer(CircuitLayer):
+    def forward(self, x, eps=10e-16):
+        return self._scatter_forward(x[self.ix_in], "logsumexp", eps=eps)
+
+
+class ProbabilisticCircuitLayer(CircuitLayer):
+    def __init__(self, ix_in, ix_out):
+        super().__init__(ix_in, ix_out)
+        self.weights = nn.Parameter(torch.randn_like(ix_in, dtype=torch.float32))
+
+    def get_edge_weights(self):
+        exp_weights, _ = self._safe_exp(self.weights)
+        norm = self._scatter_forward(exp_weights, "sum")
+        return exp_weights / norm[self.ix_out]
+
+    def renorm_weights(self, x):
+        with torch.no_grad():
+            self.weights.data = self.get_log_edge_weights(0) + x
+
+    def get_log_edge_weights(self, eps):
+        norm = self._scatter_logsumexp_forward(self.weights, eps)
+        return self.weights - norm[self.ix_out]
+
+    def sample(self, y, eps=10e-16):
+        weights = self.get_log_edge_weights(eps)
+        noise = -(-torch.log(torch.rand_like(weights) + eps) + eps).log()
+        gumbels = weights + noise
+        samples = self._scatter_forward(gumbels, "amax")
+        samples = samples[self.ix_out] == gumbels
+        samples &= y[self.ix_out].to(torch.bool)
+        return self._scatter_backward(samples, "sum") > 0
+
+
+class ProbabilisticSumLayer(ProbabilisticCircuitLayer):
+    def forward(self, x):
+        x = self.get_edge_weights() * x[self.ix_in]
+        return self._scatter_forward(x, "sum")
+
+    def condition(self, x):
+        x2 = self.forward(x)
+        self.renorm_weights(x[self.ix_in].log())
+        return x2
+
+
+class ProbabilisticLogSumLayer(ProbabilisticCircuitLayer):
+    def forward(self, x, eps=10e-16):
+        x = self.get_log_edge_weights(eps) + x[self.ix_in]
+        return self._scatter_logsumexp_forward(x, eps)
+
+    def condition(self, x):
+        y = self.forward(x)
+        self.renorm_weights(x[self.ix_in])
+        return y
+
+
+def get_semiring(name: str, probabilistic: bool):
+    """
+    For a given semiring, returns the sum and product layer,
+    the zero and one elements, and a negation function.
+    """
+    if probabilistic:
+        if name == "real":
+            return ProbabilisticSumLayer, ProdLayer, 0, 1, negate_real
+        if name == "log":
+            return ProbabilisticLogSumLayer, SumLayer, float('-inf'), 0, log1mexp
+        raise ValueError(f"Unknown probabilistic semiring {name}")
+    else:
+        if name == "real":
+            return SumLayer, ProdLayer, 0, 1, negate_real
+        elif name == "log":
+            return LogSumLayer, SumLayer, float('-inf'), 0, log1mexp
+        elif name == "mpe":
+            return MaxLayer, ProdLayer, 0, 1, negate_real
+        elif name == "godel":
+            return MaxLayer, MinLayer, 0, 1, negate_real
+        raise ValueError(f"Unknown semiring {name}")

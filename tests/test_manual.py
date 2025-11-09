@@ -30,8 +30,24 @@ def test_probabilistic():
     m = c.to_torch_module(semiring='real', probabilistic=True)
     m.layers[1].weights.data.zero_()
     weights = torch.tensor([0.4, 0.8, 0.5])
-    expected_result = torch.tensor((0.4/2 + 0.2/2) * (0.2/2 + 0.5/2))
+    expected_result = torch.tensor((0.4 / 2 + 0.2 / 2) * (0.2 / 2 + 0.5 / 2))
     assert torch.allclose(m(weights), expected_result)
+
+
+def test_create_pc():
+    c = klay.Circuit()
+    l1, l2, l3 = c.literal_node(1), c.literal_node(-2), c.literal_node(3)
+    or_node1 = c.or_node([l1, l2])
+    or_node2 = c.or_node([l2, l3])
+    and_node = c.and_node([or_node1, or_node2])
+    c.set_root(and_node)
+
+    m = c.to_torch_module(semiring='real')
+    m = m.to_pc(torch.tensor([0.4, 0.8, 0.5]))
+    edge_weights = m.layers[1].get_edge_weights()
+    expected_weights = torch.tensor([2/3, 1/3, 2/7, 5/7])
+    assert torch.allclose(edge_weights, expected_weights)
+
 
 def test_pc_conditioning():
     c = klay.Circuit()
@@ -43,9 +59,10 @@ def test_pc_conditioning():
     c.set_root(or_node)
 
     m = c.to_torch_module(semiring='real', probabilistic=True)
-    m.condition_pc(torch.tensor([1,1]), torch.tensor([1,0]))
+    m.condition(torch.tensor([1, 1]), torch.tensor([1, 0]))
     for _ in range(20):
-        assert torch.allclose(m.sample_pc(), torch.tensor([True, True]))
+        assert torch.allclose(m.sample(), torch.tensor([True, True]))
+
 
 def test_log_probabilistic():
     c = klay.Circuit()
@@ -58,7 +75,7 @@ def test_log_probabilistic():
     m = c.to_torch_module(semiring='log', probabilistic=True)
     m.layers[1].weights.data.zero_()
     weights = torch.tensor([0.4, 0.8, 0.5])
-    expected_result = torch.tensor((0.4/2 + 0.2/2) * (0.2/2 + 0.5/2))
+    expected_result = torch.tensor((0.4 / 2 + 0.2 / 2) * (0.2 / 2 + 0.5 / 2))
     assert torch.allclose(m(weights.log()).exp(), expected_result)
 
 
@@ -115,6 +132,7 @@ def test_single_layer_multi_root():
     expected = torch.tensor([0.4, 0.2, 0.4])
     assert torch.allclose(m(weights), expected)
 
+
 def test_superfluous_nodes_after_root():
     c = klay.Circuit()
     l1, l2, l3 = c.literal_node(1), c.literal_node(2), c.literal_node(3)
@@ -138,6 +156,7 @@ def test_sdd_literal():
     weights = torch.tensor([0.4])
     expected = torch.tensor([0.4])
     assert torch.allclose(m(weights), expected)
+
 
 def test_sdd_multiroot():
     sdd_mgr = SddManager(var_count=2)
