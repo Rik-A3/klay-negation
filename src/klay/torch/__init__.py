@@ -5,53 +5,54 @@ from .layers import ProbabilisticCircuitLayer, get_semiring
 from .utils import unroll_ixs
 
 
-def _create_layers(sum_layer, prod_layer, ixs_in, ixs_out):
+def _create_layers(sum_layer, prod_layer, ixs_in, ixs_out, eps):
     layers = []
     for i, (ix_in, ix_out) in enumerate(zip(ixs_in, ixs_out)):
         ix_in = torch.as_tensor(ix_in, dtype=torch.long)
         ix_out = torch.as_tensor(ix_out, dtype=torch.long)
         ix_out = unroll_ixs(ix_out)
         layer = prod_layer if i % 2 == 0 else sum_layer
-        layers.append(layer(ix_in, ix_out))
+        layers.append(layer(ix_in, ix_out, eps))
     return nn.Sequential(*layers)
 
 
 class CircuitModule(nn.Module):
-    def __init__(self, ixs_in, ixs_out, semiring='real'):
+    def __init__(self, ixs_in, ixs_out, semiring: str = 'real', eps: float = 0):
         super(CircuitModule, self).__init__()
         self.semiring = semiring
+        self._eps = 0
+
         self.sum_layer, self.prod_layer, self.zero, self.one, self.negate = \
             get_semiring(semiring, self.is_probabilistic())
-        self.layers = _create_layers(self.sum_layer, self.prod_layer, ixs_in, ixs_out)
+        self.layers = _create_layers(self.sum_layer, self.prod_layer, ixs_in, ixs_out, eps)
 
-    def forward(self, x_pos, x_neg=None, eps=0):
-        x = self.encode_input(x_pos, x_neg, eps)
+    def forward(self, x_pos, x_neg=None):
+        x = self.encode_input(x_pos, x_neg)
         return self.layers(x)
 
-    def encode_input(self, pos, neg, eps):
+    def encode_input(self, pos, neg):
         if neg is None:
-            neg = self.negate(pos, eps)
+            neg = self.negate(pos, self._eps)
         x = torch.stack([pos, neg], dim=1).flatten()
-        units = torch.tensor([self.zero, self.one], dtype=torch.float32, device=pos.device)
+        units = torch.tensor([self.zero, self.one], dtype=pos.dtype, device=pos.device)
         return torch.cat([units, x])
 
     def sparsity(self, nb_vars: int) -> float:
-        sparse_params = sum(len(l.ix_out) for l in self.layers)
-        layer_widths = [nb_vars] + [l.out_shape[0] for l in self.layers]
+        sparse_params = sum(len(layer.ix_out) for layer in self.layers)
+        layer_widths = [nb_vars] + [layer.out_shape[0] for layer in self.layers]
         dense_params = sum(layer_widths[i] * layer_widths[i + 1] for i in range(len(layer_widths) - 1))
         return sparse_params / dense_params
 
-    def to_pc(self, x_pos, x_neg=None, eps=0):
+    def to_pc(self, x_pos, x_neg=None):
         """ Converts the circuit into a probabilistic circuit."""
         assert self.semiring == "log" or self.semiring == "real"
         pc = ProbabilisticCircuitModule([], [], self.semiring)
-        print("Making PC", pc.sum_layer, pc.sum_layer)
         layers = []
 
-        x = self.encode_input(x_pos, x_neg, eps)
+        x = self.encode_input(x_pos, x_neg)
         for i, layer in enumerate(self.layers):
             if isinstance(layer, self.sum_layer):
-                new_layer = pc.sum_layer(layer.ix_in, layer.ix_out)
+                new_layer = pc.sum_layer(layer.ix_in, layer.ix_out, layer._eps)
                 weights = x.log() if self.semiring == "real" else x
                 new_layer.weights.data = weights[new_layer.ix_in]
             else:
@@ -76,7 +77,7 @@ class ProbabilisticCircuitModule(CircuitModule):
         return y[2::2]
 
     def condition(self, x_pos, x_neg):
-        x = self.encode_input(x_pos, x_neg, None)
+        x = self.encode_input(x_pos, x_neg)
         for layer in self.layers:
             x = layer.condition(x) \
                 if isinstance(layer, ProbabilisticCircuitLayer) \

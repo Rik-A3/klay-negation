@@ -5,7 +5,7 @@ NodePtr.__module__ = "klay"
 from collections.abc import Sequence
 
 
-def to_torch_module(self: Circuit, semiring: str = "log", probabilistic: bool = False):
+def to_torch_module(self: Circuit, semiring: str = "log", probabilistic: bool = False, eps: float = 0):
     """
     Convert the circuit into a PyTorch module.
 
@@ -15,12 +15,14 @@ def to_torch_module(self: Circuit, semiring: str = "log", probabilistic: bool = 
         If enabled, construct a probabilistic circuit instead of an arithmetic circuit.
         This means the inputs to a sum node are multiplied by a probability, and
         we can interpret sum nodes as latent Categorical variables.
+    :param eps:
+        Epsilon used by log semiring for numerical stability.
     """
     from .torch import CircuitModule, ProbabilisticCircuitModule
     indices = self._get_indices()
     if probabilistic:
-        return ProbabilisticCircuitModule(*indices, semiring=semiring)
-    return CircuitModule(*indices, semiring=semiring)
+        return ProbabilisticCircuitModule(*indices, semiring=semiring, eps=eps)
+    return CircuitModule(*indices, semiring=semiring, eps=eps)
 
 
 def to_jax_function(self: Circuit, semiring: str = "log"):
