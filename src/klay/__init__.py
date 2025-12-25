@@ -3,6 +3,8 @@ from .klay_ext import Circuit, NodePtr
 NodePtr.__module__ = "klay"
 
 from collections.abc import Sequence
+import tempfile
+from pathlib import Path
 
 
 def to_torch_module(self: Circuit, semiring: str = "log", probabilistic: bool = False, eps: float = 0):
@@ -50,13 +52,9 @@ def add_sdd(self: Circuit, sdd: "SddNode", true_lits: Sequence[int] = (), false_
 
     .. _SDDNode: https://pysdd.readthedocs.io/en/latest/classes/SddNode.html
     """
-    import os
-    from pathlib import Path
-
-    sdd.save(bytes(Path("tmp.sdd")))
-    root = self.add_sdd_from_file("tmp.sdd", true_lits, false_lits)
-    os.remove("tmp.sdd")
-    return root
+    with tempfile.NamedTemporaryFile() as tmp:
+        sdd.save(bytes(Path(tmp.name)))
+        return self.add_sdd_from_file(tmp.name, true_lits, false_lits)
 
 
 Circuit.to_torch_module = to_torch_module
