@@ -54,13 +54,23 @@ Node* Circuit::add_node_level_compressed(Node* node) {
     if (node->type == NodeType::Or) {
         annihilateType = NodeType::True;
         neutralType = NodeType::False;
-        annihilate_function = &Node::createTrueNode;
-        neutral_function = &Node::createFalseNode;
+        if (node->negate) {
+			annihilate_function = &Node::createFalseNode;
+			neutral_function = &Node::createTrueNode;
+		} else {
+			annihilate_function = &Node::createTrueNode;
+			neutral_function = &Node::createFalseNode;
+        }
     } else if (node->type == NodeType::And) {
         annihilateType = NodeType::False;
         neutralType = NodeType::True;
-        annihilate_function = &Node::createFalseNode;
-        neutral_function = &Node::createTrueNode;
+        if (node->negate) {
+			annihilate_function = &Node::createTrueNode;
+			neutral_function = &Node::createFalseNode;
+		} else {
+        	annihilate_function = &Node::createFalseNode;
+        	neutral_function = &Node::createTrueNode;
+        }
     } else {
         return add_node_level(node);
     }
@@ -95,11 +105,12 @@ Node* Circuit::add_node_level_compressed(Node* node) {
         // recreate node because the hash is wrong
         // when we change children
         NodeType t = node->type;
+        bool n = node->negate;
         delete node;
         if (t == NodeType::And)
-            node = Node::createAndNode();
+            node = Node::createAndNode(n);
         else
-            node = Node::createOrNode();
+            node = Node::createOrNode(n);
         for(auto child: new_children)
             node->add_child(child);
     }
@@ -418,7 +429,7 @@ void cleanup(void* data) noexcept {
 }
 
 
-std::pair<Arrays, Arrays> Circuit::get_indices() {
+std::tuple<Arrays, Arrays, Arrays> Circuit::get_indices() {
     remove_unused_nodes();
 	add_root_layer();
     //print_circuit(); // Helpful for debugging small circuits
@@ -428,6 +439,8 @@ std::pair<Arrays, Arrays> Circuit::get_indices() {
     Arrays indices_ndarrays;
     // per layer, a vector representing the layer
     Arrays csr_ndarrays;
+    // per layer, indices of nodes with negate=true
+    Arrays negate_ndarrays;
 
     for (std::size_t i = 1; i < nb_layers(); ++i) {
         std::vector<long int> child_counts(layers[i].size(), 0);
@@ -445,7 +458,10 @@ std::pair<Arrays, Arrays> Circuit::get_indices() {
         }
 
         long int* indices_data = new long int[layer_size];
+        std::vector<long int> negate_ixs;
         for (const auto *node: layers[i]) {
+            if (node->negate)
+                negate_ixs.push_back(node->ix);
             std::size_t offset = 0;
             for (Node *child: node->children) {
                 assert(child->layer == i-1);
@@ -453,18 +469,27 @@ std::pair<Arrays, Arrays> Circuit::get_indices() {
             }
         }
 
+        long int* negate_data = new long int[negate_ixs.size()];
+        for (std::size_t j = 0; j < negate_ixs.size(); ++j) {
+            negate_data[j] = negate_ixs[j];
+        }
+
         std::size_t indices_size[1] = {layer_size};
         std::size_t csr_size[1] = {layer_len};
+        std::size_t negate_size[1] = {negate_ixs.size()};
         nb::capsule indices_capsule(indices_data, cleanup);
         nb::capsule csr_capsule(csr_data, cleanup);
+        nb::capsule negate_capsule(negate_data, cleanup);
 
         nb::ndarray<nb::numpy, long int, nb::shape<-1>> indices_ndarray(indices_data, 1, indices_size, indices_capsule);
         nb::ndarray<nb::numpy, long int, nb::shape<-1>> csr_ndarray(csr_data, 1, csr_size, csr_capsule);
+        nb::ndarray<nb::numpy, long int, nb::shape<-1>> negate_ndarray(negate_data, 1, negate_size, negate_capsule);
         indices_ndarrays.push_back(indices_ndarray);
         csr_ndarrays.push_back(csr_ndarray);
+        negate_ndarrays.push_back(negate_ndarray);
     }
 
-    return std::make_pair(indices_ndarrays, csr_ndarrays);
+    return std::make_tuple(indices_ndarrays, csr_ndarrays, negate_ndarrays);
 }
 
 
@@ -487,8 +512,8 @@ nb::class_<Circuit>(m, "Circuit", "Circuits are the main class added by KLay, an
 .def("true_node", &Circuit::true_node, "Adds a true node to the circuit, and returns a pointer to this node.")
 .def("false_node", &Circuit::false_node, "Adds a false node to the circuit, and returns a pointer to this node.")
 .def("literal_node", &Circuit::literal_node, "Adds a literal node to the circuit, and returns a pointer to this node.", "literal"_a)
-.def("or_node", &Circuit::or_node, "children"_a, "Adds an :code:`or` node to the circuit, and returns a pointer to this node.")
-.def("and_node", &Circuit::and_node, "children"_a, "Adds an :code:`and` node to the circuit, and returns a pointer to this node.")
+.def("or_node", &Circuit::or_node, "children"_a, nb::arg("negate") = false, "Adds an :code:`or` node to the circuit, and returns a pointer to this node.")
+.def("and_node", &Circuit::and_node, "children"_a, nb::arg("negate") = false, "Adds an :code:`and` node to the circuit, and returns a pointer to this node.")
 .def("set_root", &Circuit::set_root, "root"_a, "Marks a node pointer as root. The order in which nodes are set as root determines the order of the output tensor.\n .. note:: Only use this when manually constructing a circuit, when loading in a NNF/SDD its root is automatically set as root.\n")
 .def("remove_unused_nodes", &Circuit::remove_unused_nodes, "Removes unused nodes from the circuit. Root nodes are always considered used.\n .. warning:: Invalidates any :code:`NodePtr` referring to an unused node (i.e., a node not connected to a root node).\n");
 

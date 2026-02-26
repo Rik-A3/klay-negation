@@ -5,26 +5,27 @@ from .layers import ProbabilisticCircuitLayer, get_semiring
 from .utils import unroll_ixs
 
 
-def _create_layers(sum_layer, prod_layer, ixs_in, ixs_out, eps):
+def _create_layers(sum_layer, prod_layer, ixs_in, ixs_out, ixs_negates, eps, negate):
     layers = []
-    for i, (ix_in, ix_out) in enumerate(zip(ixs_in, ixs_out)):
+    for i, (ix_in, ix_out, ix_negate) in enumerate(zip(ixs_in, ixs_out, ixs_negates)):
         ix_in = torch.as_tensor(ix_in, dtype=torch.long)
         ix_out = torch.as_tensor(ix_out, dtype=torch.long)
+        ix_negate = torch.as_tensor(ix_negate, dtype=torch.long)
         ix_out = unroll_ixs(ix_out)
         layer = prod_layer if i % 2 == 0 else sum_layer
-        layers.append(layer(ix_in, ix_out, eps))
+        layers.append(layer(ix_in, ix_out, ix_negate, eps, negate))
     return nn.Sequential(*layers)
 
 
 class CircuitModule(nn.Module):
-    def __init__(self, ixs_in, ixs_out, semiring: str = 'real', eps: float = 0):
+    def __init__(self, ixs_in, ixs_out, ixs_negates, semiring: str = 'real', eps: float = 0):
         super(CircuitModule, self).__init__()
         self.semiring = semiring
         self._eps = 0
 
         self.sum_layer, self.prod_layer, self.zero, self.one, self.negate = \
             get_semiring(semiring, self.is_probabilistic())
-        self.layers = _create_layers(self.sum_layer, self.prod_layer, ixs_in, ixs_out, eps)
+        self.layers = _create_layers(self.sum_layer, self.prod_layer, ixs_in, ixs_out, ixs_negates, eps, self.negate)
 
     def forward(self, x_pos, x_neg=None):
         x = self.encode_input(x_pos, x_neg)
@@ -52,7 +53,7 @@ class CircuitModule(nn.Module):
         x = self.encode_input(x_pos, x_neg)
         for i, layer in enumerate(self.layers):
             if isinstance(layer, self.sum_layer):
-                new_layer = pc.sum_layer(layer.ix_in, layer.ix_out, layer._eps)
+                new_layer = pc.sum_layer(layer.ix_in, layer.ix_out, layer.ix_negate, layer._eps, layer._negate)
                 weights = x.log() if self.semiring == "real" else x
                 new_layer.weights.data = weights[new_layer.ix_in]
             else:

@@ -26,11 +26,12 @@ public:
     std::list<Node*> children;
     std::size_t layer; // Layer index
     std::size_t hash; // unique identifier of the node
+    bool negate; // whether this node is negated (only affects and/or nodes)
 
 
     static Node* createLiteralNode(Lit lit);
-    static Node* createOrNode();
-    static Node* createAndNode();
+    static Node* createOrNode(bool negate = false);
+    static Node* createAndNode(bool negate = false);
     static Node* createTrueNode();
     static Node* createFalseNode();
 
@@ -121,9 +122,9 @@ struct NodeEqual {
 #endif
 
         // We must not compare `ix`, because that is not set yet when we compare.
-        // We do not compare `type`, as that check is subsumed by comparing `layer`
-        return (lhs->hash == rhs->hash) && (lhs->layer == rhs->layer);
+        return (lhs->hash == rhs->hash)
+            && (lhs->layer == rhs->layer)
+            && (lhs->negate == rhs->negate);
     }
 };
-
 

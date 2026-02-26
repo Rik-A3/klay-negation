@@ -3,6 +3,7 @@
 #include <nanobind/nanobind.h>
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/pair.h>
+#include <nanobind/stl/tuple.h>
 #include <nanobind/stl/vector.h>
 #include <nanobind/ndarray.h>
 #include <nanobind/operators.h>
@@ -13,6 +14,7 @@
 #include <vector>
 #include <list>
 #include <cstdint>
+#include <tuple>
 
 #include "node.h"
 #include "hash_set8.hpp"
@@ -161,7 +163,7 @@ public:
      */
     void remove_unused_nodes();
 
-    std::pair<Arrays, Arrays> get_indices();
+    std::tuple<Arrays, Arrays, Arrays> get_indices();
 
     /**
      * Number of nodes in the whole circuit.
@@ -213,8 +215,8 @@ public:
         return NodePtr(add_node_level_compressed(node));
     }
 
-    NodePtr and_node(std::vector<NodePtr> children) {
-        Node* node = Node::createAndNode();
+    NodePtr and_node(std::vector<NodePtr> children, bool negate = false) {
+        Node* node = Node::createAndNode(negate);
         for (auto child: children) {
             Node *child_cast = child.get();
             node->add_child(child_cast);
@@ -222,8 +224,8 @@ public:
         return NodePtr(add_node_level_compressed(node));
     }
 
-    NodePtr or_node(std::vector<NodePtr> children) {
-        Node* node = Node::createOrNode();
+    NodePtr or_node(std::vector<NodePtr> children, bool negate = false) {
+        Node* node = Node::createOrNode(negate);
         for (auto child: children) {
             Node *child_cast = child.get();
             node->add_child(child_cast);

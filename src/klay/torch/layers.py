@@ -5,19 +5,27 @@ from .utils import negate_real, log1mexp
 
 
 class CircuitLayer(nn.Module):
-    def __init__(self, ix_in, ix_out, eps):
+    def __init__(self, ix_in, ix_out, ix_negate, eps, negate):
         super().__init__()
         self.register_buffer('ix_in', ix_in)
         self.register_buffer('ix_out', ix_out)
         self.out_shape = (self.ix_out[-1].item() + 1,)
         self.in_shape = (self.ix_in.max().item() + 1,)
+        self.ix_negate = ix_negate
         self._eps = eps
+        self._negate = negate
 
     def _scatter_forward(self, x: torch.Tensor, reduce: str):
         if reduce == "logsumexp":
-            return self._scatter_logsumexp_forward(x)
-        output = torch.empty(self.out_shape, dtype=x.dtype, device=x.device)
-        output = torch.scatter_reduce(output, 0, index=self.ix_out, src=x, reduce=reduce, include_self=False)
+            output = self._scatter_logsumexp_forward(x)
+        else:
+            output = torch.empty(self.out_shape, dtype=x.dtype, device=x.device)
+            output = torch.scatter_reduce(output, 0, index=self.ix_out, src=x, reduce=reduce, include_self=False)
+
+        if self.ix_negate.numel() > 0:
+            values = output[self.ix_negate]
+            output[self.ix_negate] = self._negate(values, self._eps)
+
         return output
 
     def _scatter_backward(self, x: torch.Tensor, reduce: str):
@@ -69,8 +77,8 @@ class LogSumLayer(CircuitLayer):
 
 
 class ProbabilisticCircuitLayer(CircuitLayer):
-    def __init__(self, ix_in, ix_out, eps):
-        super().__init__(ix_in, ix_out, eps)
+    def __init__(self, ix_in, ix_out, ix_negate, eps, negate):
+        super().__init__(ix_in, ix_out, ix_negate, eps, negate)
         self.weights = nn.Parameter(torch.randn_like(ix_in, dtype=torch.float32))
 
     def get_edge_weights(self):

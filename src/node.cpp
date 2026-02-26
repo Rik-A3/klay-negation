@@ -45,8 +45,8 @@ std::string Node::get_label() const {
     switch (type) {
         case NodeType::True: labelName = "T"; break;
         case NodeType::False: labelName = "F"; break;
-        case NodeType::Or: labelName = "O"; break;
-        case NodeType::And: labelName = "A"; break;
+        case NodeType::Or: negate ? labelName = "NO" : labelName = "O"; break;
+        case NodeType::And: negate ? labelName = "NA" : labelName = "A"; break;
         case NodeType::Leaf: labelName = "L"; break;
         default: // should not happen. Indicates node was deleted?
             throw std::runtime_error("Invalid node type");
@@ -78,23 +78,33 @@ Node* Node::createLiteralNode(Lit lit) {
     };
 }
 
-Node* Node::createAndNode() {
+Node* Node::createAndNode(bool negate) {
+    std::size_t hash_seed = 13643702618494718795UL;
+    if (negate)
+        hash_seed = mix_hash(hash_seed ^ 0x9e3779b97f4a7c15ULL);
+
     return new Node{
             NodeType::And,
             -1,
             {},
             0,
-            13643702618494718795UL
+            hash_seed,
+            negate
     };
 }
 
-Node* Node::createOrNode() {
+Node* Node::createOrNode(bool negate) {
+    std::size_t hash_seed = 10911628454825363117UL;
+    if (negate)
+        hash_seed = mix_hash(hash_seed ^ 0x9e3779b97f4a7c15ULL);
+
     return new Node{
             NodeType::Or,
             -1,
             {},
             0,
-            10911628454825363117UL
+            hash_seed,
+            negate
     };
 }
 
