@@ -74,6 +74,12 @@ public:
      */
     inline bool is_false() const { return this->type == NodeType::False; }
 
+    /**
+     * Flip a True node to False or a False node to True, in-place.
+     * Throws if called on any other node type.
+     */
+    void negate_constant();
+
 };
 
 

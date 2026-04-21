@@ -235,6 +235,6 @@ public:
             bool negative = !edge_negative.empty() && edge_negative[i];
             node->add_child(child_cast, negative);
         }
-        return NodePtr(add_node_level_compressed(node);
+        return NodePtr(add_node_level_compressed(node));
     }
 };
