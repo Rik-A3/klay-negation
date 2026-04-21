@@ -32,6 +32,17 @@ def test_nor_node():
     weights = torch.tensor([0.4, 0.8])
     assert_close(m(weights).item(), 1 - (0.4 + (1 - 0.8)))
 
+def test_inclusion_exclusion():
+    c = klay.Circuit()
+    l1, l2 = c.literal_node(1), c.literal_node(-2)
+    and_node = c.and_node([l1, l2])
+    or_node = c.or_node([l1, l2, and_node], edge_negative=[False, False, True])
+    c.set_root(or_node)
+
+    m = c.to_torch_module(semiring='real')
+    weights = torch.tensor([0.4, 0.8])
+    assert_close(m(weights).item(), 0.4 + (1 - 0.8) - 0.4 * (1 - 0.8))
+
 def test_nand_node():
     c = klay.Circuit()
     l1, l2 = c.literal_node(1), c.literal_node(-2)

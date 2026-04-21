@@ -24,6 +24,7 @@ using namespace nb::literals;
 
 typedef std::vector<nb::ndarray<nb::numpy, long int, nb::shape<-1>>> Arrays;
 
+class Circuit;
 
 class NodePtr {
 public:
@@ -163,7 +164,7 @@ public:
      */
     void remove_unused_nodes();
 
-    std::tuple<Arrays, Arrays, Arrays> get_indices();
+    std::tuple<Arrays, Arrays, Arrays, Arrays> get_indices();
 
     /**
      * Number of nodes in the whole circuit.
@@ -188,8 +189,10 @@ public:
             std::cout << "--- next layer ---" << std::endl;
             for (const auto &node : layer) {
                 std::cout << node->get_label() << " connects to ";
-                for (const auto &child : node->children) {
-                    std::cout << child->get_label() << ",";
+                for (const auto &edge : node->children) {
+                    if (edge.negative)
+                        std::cout << "-";
+                    std::cout << edge.child->get_label() << ",";
                 }
                 std::cout << std::endl;
             }
@@ -224,12 +227,14 @@ public:
         return NodePtr(add_node_level_compressed(node));
     }
 
-    NodePtr or_node(std::vector<NodePtr> children, bool negate = false) {
+    NodePtr or_node(std::vector<NodePtr> children, bool negate = false, std::vector<bool> edge_negative = {}) {
         Node* node = Node::createOrNode(negate);
-        for (auto child: children) {
+        for (std::size_t i = 0; i < children.size(); ++i) {
+            auto child = children[i];
             Node *child_cast = child.get();
-            node->add_child(child_cast);
+            bool negative = !edge_negative.empty() && edge_negative[i];
+            node->add_child(child_cast, negative);
         }
-        return NodePtr(add_node_level_compressed(node));
+        return NodePtr(add_node_level_compressed(node), this);
     }
 };

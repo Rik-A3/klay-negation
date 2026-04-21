@@ -20,13 +20,19 @@ std::size_t mix_hash(std::size_t h) {
  * - Increases the layer of this node to be at least above the child's layer.
  * @param child The new child of this node.
  */
-void Node::add_child(Node* child) {
+void Node::add_child(Node* child, bool negative) {
     if (type != NodeType::Or && type != NodeType::And) {
         throw std::runtime_error("Can only add children to AND/OR nodes");
     }
+    if (negative && type != NodeType::Or) {
+        throw std::runtime_error("Negative edges are only supported on OR nodes");
+    }
 
-    children.push_back(child);
-    hash ^= mix_hash(child->hash);
+    children.push_back({child, negative});
+    std::size_t child_hash = child->hash;
+    if (negative)
+        child_hash = mix_hash(child_hash ^ 0x517cc1b727220a95ULL);
+    hash ^= mix_hash(child_hash);
     std::size_t layer_bound = child->layer + 1;
     if (layer_bound%2 == 0 && type == NodeType::And) {
         layer_bound++; // And nodes must be in odd layers
@@ -74,7 +80,8 @@ Node* Node::createLiteralNode(Lit lit) {
             ix,
             {},
             0,
-            mix_hash(ix)
+            mix_hash(ix),
+            false
     };
 }
 
@@ -114,7 +121,8 @@ Node* Node::createTrueNode() {
             1,
             {},
             0,
-            10398838469117805359UL
+            10398838469117805359UL,
+            false
     };
 }
 
@@ -124,8 +132,23 @@ Node* Node::createFalseNode() {
             0,
             {},
             0,
-            2055047638380880996UL
+            2055047638380880996UL,
+            false
     };
+}
+
+void Node::negate_constant() {
+    if (is_true()) {
+        type = NodeType::False;
+        ix = 0;
+        hash = 2055047638380880996UL;
+    } else if (is_false()) {
+        type = NodeType::True;
+        ix = 1;
+        hash = 10398838469117805359UL;
+    } else {
+        throw std::runtime_error("NodePtr.negate() is only supported for true/false nodes");
+    }
 }
 
 

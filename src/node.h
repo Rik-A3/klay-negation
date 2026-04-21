@@ -12,6 +12,12 @@
 
 enum class NodeType {True, False, Or, And, Leaf};
 
+class Node;  // forward declaration
+
+struct Edge {
+    Node* child;
+    bool negative;
+};
 
 /**
  * A Node in a Layer.
@@ -23,7 +29,7 @@ public:
     NodeType type;
     int ix;  // Index of the node in its layer; can be -1 when uninitialized.
 
-    std::list<Node*> children;
+    std::list<Edge> children;
     std::size_t layer; // Layer index
     std::size_t hash; // unique identifier of the node
     bool negate; // whether this node is negated (only affects and/or nodes)
@@ -42,7 +48,7 @@ public:
      * - Increases the layer of this node to be at least above the child's layer.
      * @param child The new child of this node.
      */
-    void add_child(Node* child);
+    void add_child(Node* child, bool negative = false);
 
     /**
      * Useful for printing.
@@ -127,4 +133,3 @@ struct NodeEqual {
             && (lhs->negate == rhs->negate);
     }
 };
-

@@ -5,13 +5,14 @@ from .utils import negate_real, log1mexp
 
 
 class CircuitLayer(nn.Module):
-    def __init__(self, ix_in, ix_out, ix_negate, eps, negate):
+    def __init__(self, ix_in, ix_out, ix_negate, edge_sign, eps, negate):
         super().__init__()
         self.register_buffer('ix_in', ix_in)
         self.register_buffer('ix_out', ix_out)
+        self.register_buffer('ix_negate', ix_negate)
+        self.register_buffer('edge_sign', edge_sign)
         self.out_shape = (self.ix_out[-1].item() + 1,)
         self.in_shape = (self.ix_in.max().item() + 1,)
-        self.ix_negate = ix_negate
         self._eps = eps
         self._negate = negate
 
@@ -24,7 +25,7 @@ class CircuitLayer(nn.Module):
 
         if self.ix_negate.numel() > 0:
             values = output[self.ix_negate]
-            output[self.ix_negate] = self._negate(values, self._eps)
+            output = output.scatter(0, self.ix_negate, self._negate(values, self._eps))
 
         return output
 
@@ -53,7 +54,10 @@ class CircuitLayer(nn.Module):
 
 class SumLayer(CircuitLayer):
     def forward(self, x):
-        return self._scatter_forward(x[self.ix_in], "sum")
+        values = x[self.ix_in]
+        if self.edge_sign.numel() > 0:
+            values = values * self.edge_sign.to(values.dtype)
+        return self._scatter_forward(values, "sum")
 
 
 class ProdLayer(CircuitLayer):
@@ -77,8 +81,8 @@ class LogSumLayer(CircuitLayer):
 
 
 class ProbabilisticCircuitLayer(CircuitLayer):
-    def __init__(self, ix_in, ix_out, ix_negate, eps, negate):
-        super().__init__(ix_in, ix_out, ix_negate, eps, negate)
+    def __init__(self, ix_in, ix_out, ix_negate, edge_sign, eps, negate):
+        super().__init__(ix_in, ix_out, ix_negate, edge_sign, eps, negate)
         self.weights = nn.Parameter(torch.randn_like(ix_in, dtype=torch.float32))
 
     def get_edge_weights(self):
