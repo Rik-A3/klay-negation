@@ -534,6 +534,7 @@ nb::class_<Circuit>(m, "Circuit", "Circuits are the main class added by KLay, an
 .def("and_node", &Circuit::and_node, "children"_a, nb::arg("negate") = false, "Adds an :code:`and` node to the circuit, and returns a pointer to this node.")
 .def("set_root", &Circuit::set_root, "root"_a, "Marks a node pointer as root. The order in which nodes are set as root determines the order of the output tensor.\n .. note:: Only use this when manually constructing a circuit, when loading in a NNF/SDD its root is automatically set as root.\n")
 .def("remove_unused_nodes", &Circuit::remove_unused_nodes, "Removes unused nodes from the circuit. Root nodes are always considered used.\n .. warning:: Invalidates any :code:`NodePtr` referring to an unused node (i.e., a node not connected to a root node).\n");
+.def("get_node", &Circuit::get_node, "node"_a, "Returns the node in the circuit corresponding to the given pointer. This is useful for inspecting the circuit after loading or manual construction.\n .. warning:: Invalidates any :code:`NodePtr` referring to an unused node (i.e., a node not connected to a root node).\n");
 
 m.def("to_dot_file", &to_dot_file, "circuit"_a, "filename"_a, "Write the given circuit as dot format to a file");
 }
