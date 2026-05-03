@@ -10,7 +10,7 @@
 
 #include "cassert"
 
-enum class NodeType {True, False, Or, And, Leaf};
+enum class NodeType {T, F, Or, And, Leaf};
 
 class Node;  // forward declaration
 
@@ -67,12 +67,12 @@ public:
     /**
      * Whether this is a True Node.
      */
-    inline bool is_true() const { return this->type == NodeType::True; }
+    inline bool is_true() const { return this->type == NodeType::T; }
 
     /**
      * Whether this is a False Node.
      */
-    inline bool is_false() const { return this->type == NodeType::False; }
+    inline bool is_false() const { return this->type == NodeType::F; }
 
     /**
      * Flip a True node to False or a False node to True, in-place.

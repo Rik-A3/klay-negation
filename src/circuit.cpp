@@ -53,8 +53,8 @@ Node* Circuit::add_node_level_compressed(Node* node) {
     Node* (*annihilate_function)();
     Node* (*neutral_function)();
     if (node->type == NodeType::Or) {
-        annihilateType = NodeType::True;
-        neutralType = NodeType::False;
+        annihilateType = NodeType::T;
+        neutralType = NodeType::F;
         if (node->negate) {
 			annihilate_function = &Node::createFalseNode;
 			neutral_function = &Node::createTrueNode;
@@ -63,8 +63,8 @@ Node* Circuit::add_node_level_compressed(Node* node) {
 			neutral_function = &Node::createFalseNode;
         }
     } else if (node->type == NodeType::And) {
-        annihilateType = NodeType::False;
-        neutralType = NodeType::True;
+        annihilateType = NodeType::F;
+        neutralType = NodeType::T;
         if (node->negate) {
 			annihilate_function = &Node::createTrueNode;
 			neutral_function = &Node::createFalseNode;
@@ -514,11 +514,43 @@ std::tuple<Arrays, Arrays, Arrays, Arrays> Circuit::get_indices() {
 NB_MODULE(klay_ext, m) {
 m.doc() = "Layerize arithmetic circuits";
 
+nb::class_<Lit>(m, "Lit")
+    .def_static("from_int", &Lit::fromInt, "i"_a)
+    .def("to_int", &Lit::toInt)
+    .def("var", &Lit::var)
+    .def("sign", &Lit::sign)
+    .def("negation", &Lit::negation)
+    .def("__repr__", [](const Lit& l) { return "Lit(" + std::to_string(l.toInt()) + ")"; })
+    .def("__eq__", &Lit::operator==)
+    .def("__ne__", &Lit::operator!=);
+
+nb::enum_<NodeType>(m, "NodeType")
+    .value("T", NodeType::T)
+    .value("F", NodeType::F)
+    .value("Or", NodeType::Or)
+    .value("And", NodeType::And)
+    .value("Leaf", NodeType::Leaf)
+    .export_values();
+
+nb::class_<Edge>(m, "Edge")
+    .def_prop_ro("child", [](const Edge& e) { return e.child; }, nb::rv_policy::reference)
+    .def_ro("negative", &Edge::negative);
+
+nb::class_<Node>(m, "Node")
+    .def_ro("type", &Node::type)
+    .def_ro("ix", &Node::ix)
+    .def_ro("layer", &Node::layer)
+    .def_ro("hash", &Node::hash)
+    .def_ro("negate", &Node::negate)
+    .def_ro("children", &Node::children)
+    .def("get_label", &Node::get_label);
+
 nb::class_<NodePtr>(m, "NodePtr")
 .def("__repr__", &NodePtr::to_string)
 .def(nb::self == nb::self)
 .def("__hash__", &NodePtr::as_int)
-.def("get_ix", [](NodePtr a) {return a.get()->ix;});
+.def("get_ix", [](NodePtr a) {return a.get()->ix;})
+.def("get", &NodePtr::get, "Returns the underlying Node pointer. This is not intended for public use, and should only be used for debugging purposes.");
 
 nb::class_<Circuit>(m, "Circuit", "Circuits are the main class added by KLay, and require no arguments to construct.\n\n:code:`circuit = klay.Circuit()` ")
 .def(nb::init<>())
@@ -533,8 +565,7 @@ nb::class_<Circuit>(m, "Circuit", "Circuits are the main class added by KLay, an
 .def("or_node", &Circuit::or_node, "children"_a, nb::arg("negate") = false, "edge_negative"_a = std::vector<bool>(), "Adds an :code:`or` node to the circuit, and returns a pointer to this node.")
 .def("and_node", &Circuit::and_node, "children"_a, nb::arg("negate") = false, "Adds an :code:`and` node to the circuit, and returns a pointer to this node.")
 .def("set_root", &Circuit::set_root, "root"_a, "Marks a node pointer as root. The order in which nodes are set as root determines the order of the output tensor.\n .. note:: Only use this when manually constructing a circuit, when loading in a NNF/SDD its root is automatically set as root.\n")
-.def("remove_unused_nodes", &Circuit::remove_unused_nodes, "Removes unused nodes from the circuit. Root nodes are always considered used.\n .. warning:: Invalidates any :code:`NodePtr` referring to an unused node (i.e., a node not connected to a root node).\n")
-.def("get_node", &Circuit::get_node, "node"_a, "Returns the node in the circuit corresponding to the given pointer. This is useful for inspecting the circuit after loading or manual construction.\n .. warning:: Invalidates any :code:`NodePtr` referring to an unused node (i.e., a node not connected to a root node).\n");
+.def("remove_unused_nodes", &Circuit::remove_unused_nodes, "Removes unused nodes from the circuit. Root nodes are always considered used.\n .. warning:: Invalidates any :code:`NodePtr` referring to an unused node (i.e., a node not connected to a root node).\n");
 
 m.def("to_dot_file", &to_dot_file, "circuit"_a, "filename"_a, "Write the given circuit as dot format to a file");
 }

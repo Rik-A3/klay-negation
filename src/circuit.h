@@ -5,6 +5,7 @@
 #include <nanobind/stl/pair.h>
 #include <nanobind/stl/tuple.h>
 #include <nanobind/stl/vector.h>
+#include <nanobind/stl/list.h>
 #include <nanobind/ndarray.h>
 #include <nanobind/operators.h>
 

@@ -49,8 +49,8 @@ void Node::add_child(Node* child, bool negative) {
 std::string Node::get_label() const {
     std::string labelName;
     switch (type) {
-        case NodeType::True: labelName = "T"; break;
-        case NodeType::False: labelName = "F"; break;
+        case NodeType::T: labelName = "T"; break;
+        case NodeType::F: labelName = "F"; break;
         case NodeType::Or: negate ? labelName = "NO" : labelName = "O"; break;
         case NodeType::And: negate ? labelName = "NA" : labelName = "A"; break;
         case NodeType::Leaf: labelName = "L"; break;
@@ -117,7 +117,7 @@ Node* Node::createOrNode(bool negate) {
 
 Node* Node::createTrueNode() {
     return new Node{
-            NodeType::True,
+            NodeType::T,
             1,
             {},
             0,
@@ -128,7 +128,7 @@ Node* Node::createTrueNode() {
 
 Node* Node::createFalseNode() {
     return new Node{
-            NodeType::False,
+            NodeType::F,
             0,
             {},
             0,
@@ -139,11 +139,11 @@ Node* Node::createFalseNode() {
 
 void Node::negate_constant() {
     if (is_true()) {
-        type = NodeType::False;
+        type = NodeType::F;
         ix = 0;
         hash = 2055047638380880996UL;
     } else if (is_false()) {
-        type = NodeType::True;
+        type = NodeType::T;
         ix = 1;
         hash = 10398838469117805359UL;
     } else {
